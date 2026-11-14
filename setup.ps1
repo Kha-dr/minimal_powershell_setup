@@ -1,3 +1,5 @@
+#Requires -Version 7.0
+
 param(
     [switch]$ProfileOnly
 )
@@ -21,20 +23,28 @@ if (-not $isAdmin) {
     exit
 }
 
-# Ensure profile directory exists (works for both PowerShell 5.1, 7+, and OneDrive Documents)
-$profileFolderPath = Split-Path -Path $PROFILE -Parent
-if (-not (Test-Path -LiteralPath $profileFolderPath)) {
-    $null = New-Item -Path $profileFolderPath -ItemType Directory -Force
+# Install profile for PowerShell 7+
+$profileDir = Split-Path -Path $PROFILE -Parent
+if (-not (Test-Path -LiteralPath $profileDir)) {
+    $null = New-Item -Path $profileDir -ItemType Directory -Force
 }
 
+$localProfileSource = if ($PSScriptRoot) { Join-Path -Path $PSScriptRoot -ChildPath 'Microsoft.PowerShell_profile.ps1' } else { $null }
 $profileUrl = 'https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/Microsoft.PowerShell_profile.ps1'
+$profileContent = if ($localProfileSource -and (Test-Path -LiteralPath $localProfileSource -PathType Leaf)) {
+    Get-Content -LiteralPath $localProfileSource -Raw
+}
+else {
+    Invoke-RestMethod -Uri $profileUrl
+}
+
 if (Test-Path -LiteralPath $PROFILE -PathType Leaf) {
-    $backupPath = Join-Path -Path $profileFolderPath -ChildPath 'oldprofile.ps1'
+    $backupPath = Join-Path -Path $profileDir -ChildPath 'oldprofile.ps1'
     Move-Item -LiteralPath $PROFILE -Destination $backupPath -Force
     Write-Host "Backed up existing profile to [$backupPath]."
 }
 
-Invoke-RestMethod -Uri $profileUrl -OutFile $PROFILE
+Set-Content -LiteralPath $PROFILE -Value $profileContent -Encoding UTF8
 Write-Host "Profile installed at [$PROFILE]."
 
 if (-not $ProfileOnly) {

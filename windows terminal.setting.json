@@ -34,7 +34,7 @@
   ],
   "copyFormatting": "none",
   "copyOnSelect": false,
-  "defaultProfile": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+  "defaultProfile": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
   "firstWindowPreference": "persistedWindowLayout",
   "newTabMenu": [
     {
@@ -43,10 +43,14 @@
   ],
   "profiles": {
     "defaults": {
-      "colorScheme": "One Half Dark",
+      "colorScheme": "OneDark",
+      "cursorShape": "bar",
+      "font": {
+        "face": "CaskaydiaCove NFM",
+        "weight": "semi-bold"
+      },
       "opacity": 62,
-      "useAcrylic": true,
-      "useAtlasEngine": true
+      "useAcrylic": true
     },
     "list": [
       {
@@ -54,18 +58,29 @@
         "backgroundImage": "desktopWallpaper",
         "backgroundImageAlignment": "center",
         "backgroundImageOpacity": 0.31,
-        "colorScheme": "OneDark",
-        "cursorShape": "bar",
         "elevate": false,
         "experimental.retroTerminalEffect": false,
-        "font": {
-          "face": "CaskaydiaCove NFM",
-          "weight": "semi-bold"
-        },
+        "guid": "{574e775e-4f2a-5b96-ac1e-a2962a402336}",
+        "hidden": false,
+        "historySize": 32767,
+        "name": "PowerShell 7",
+        "opacity": 51,
+        "padding": "35",
+        "source": "Windows.Terminal.PowershellCore",
+        "startingDirectory": "%USERPROFILE%",
+        "useAcrylic": true
+      },
+      {
+        "adjustIndistinguishableColors": "indexed",
+        "backgroundImage": "desktopWallpaper",
+        "backgroundImageAlignment": "center",
+        "backgroundImageOpacity": 0.31,
+        "elevate": false,
+        "experimental.retroTerminalEffect": false,
         "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
         "hidden": false,
         "historySize": 32767,
-        "name": "PowerShell",
+        "name": "Windows PowerShell",
         "opacity": 51,
         "padding": "35",
         "startingDirectory": "%USERPROFILE%",
@@ -79,25 +94,21 @@
         "backgroundImageAlignment": "center",
         "backgroundImageOpacity": 0.16,
         "closeOnExit": "automatic",
-        "colorScheme": "One Half Dark",
-        "commandline": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-        "cursorShape": "bar",
+        "commandline": "pwsh.exe",
         "elevate": true,
         "experimental.retroTerminalEffect": false,
         "font": {
-          "face": "Cascadia Code",
-          "size": 12.0,
-          "weight": "semi-bold"
+          "size": 12.0
         },
         "guid": "{9220f636-e158-40c3-a285-7fefc99f38cd}",
         "hidden": false,
         "historySize": 9001,
-        "icon": "ms-appx:///ProfileIcons/{61c54bbd-c2c6-5271-96e7-009a87ff44bf}.png",
+        "icon": "ms-appx:///ProfileIcons/{574e775e-4f2a-5b96-ac1e-a2962a402336}.png",
         "name": "Administrator",
         "opacity": 79,
         "padding": "40",
         "snapOnInput": true,
-        "startingDirectory": null,
+        "startingDirectory": "%USERPROFILE%",
         "useAcrylic": true
       },
       {

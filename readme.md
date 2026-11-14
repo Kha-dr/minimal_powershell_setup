@@ -3,7 +3,7 @@ My Minimal Terminal Setup
 </h1>
 
 <h4 align="center">
-<img src="https://img.shields.io/badge/Powershell-v5.1.22621.1778-blue?style=for-the-badge&logo=powershell&color=8bd5ca&logoColor=D9E0EE&labelColor=302D41" />
+<img src="https://img.shields.io/badge/PowerShell-7%2B-blue?style=for-the-badge&logo=powershell&color=8bd5ca&logoColor=D9E0EE&labelColor=302D41" />
 <img src="https://img.shields.io/badge/windows_terminal-v1.17.11461.0-blue?style=for-the-badge&logo=powershell&color=DDB6F2&logoColor=D9E0EE&labelColor=302D41" />
 </h4>
 
@@ -19,12 +19,12 @@ Advantages:
 - Delete a command from history with `Shift + Delete`
 - Fast startup via cached `starship` init and idle-loaded `Terminal-Icons` (with `fd` support in `cdf` / `Open-File`)
 
-## Install (PowerShell Run As Administrator)
+## Install (PowerShell 7+ Run As Administrator)
 
 > [!WARNING]  
-> Make sure you have Winget installed. [[See More..]](https://learn.microsoft.com/en-us/windows/package-manager/winget/)
+> Requires **PowerShell 7+** (`winget install Microsoft.PowerShell`) and **Winget** [[See More..]](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
 
-Recommended to run in an elevated PowerShell:
+Recommended to run in an elevated PowerShell 7 (`pwsh`) window:
 
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
@@ -33,30 +33,29 @@ irm "https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/setu
 
 ## Custom Commands
 
-| Command              | Description                                          | Arg                        | Example                                      |
-| -------------------- | ---------------------------------------------------- | -------------------------- | -------------------------------------------- |
-| `Copy-File` / `cf`   | Copy file(s)/folder(s) to clipboard (`Set-Clipboard -Path`) | path(s) / pipeline | `cf report.pdf`, `ls *.png \| cf`            |
-| `Copy-Path` / `cpwd` | Copy resolved path (or current dir) as text          | path (optional)            | `cpwd`, `cpwd .\src`                         |
-| `sudo`               | Run as admin (uses built-in `sudo` on Win 11 24H2+, fallback otherwise) | command, args | `sudo notepad example.txt`                   |
-| `Start-ElevatedPS`   | Run PowerShell script block as admin                 | script block               | `Start-ElevatedPS { rm file.pdf }`           |
-| `cdf`                | Fuzzy-find a directory with `fzf` and `cd` into it   | -                          | `cdf`                                        |
-| `Open-File`          | Fuzzy-find a file with `fzf` and open it             | -                          | `Open-File`                                  |
-| `lk`                 | Navigate directories with `walk`                     | optional args              | `lk`                                         |
-| `Get-HotKeys`        | List PSReadLine keybindings                          | -                          | `Get-HotKeys`                                |
-| `Get-PubIP`          | Get your public IP address                           | -                          | `Get-PubIP`                                  |
-| `find-file`          | Find files/folders recursively                       | string                     | `find-file any`, `find-file "tes any"`       |
-| `unzip`              | Extract a zip archive                                | zip path, destination      | `unzip file.zip`, `unzip file.zip .\out`     |
-| `Compute-Hash`       | Calculate hash of a file or string (supports pipeline) | file/string, algorithm   | `Compute-Hash file.zip MD5`                  |
-| `md5`                | Hash file or string with MD5                         | file/string / pipeline     | `md5 file.zip`, `"Hash this" \| md5`         |
-| `sha1`               | Hash file or string with SHA1                        | file/string / pipeline     | `sha1 file.zip`, `"Hash this" \| sha1`       |
-| `sha256`             | Hash file or string with SHA256                      | file/string / pipeline     | `sha256 file.zip`, `"Hash this" \| sha256`   |
-| `ToTheBios`          | Reboot directly into UEFI/BIOS firmware settings     | -                          | `ToTheBios`                                  |
-| `which`              | Show where a command/executable resolves from        | command name               | `which sudo`, `which git`                    |
-| `mkcd`               | Create a directory and `cd` into it                  | path                       | `mkcd .\new-project`                         |
-| `touch`              | Create an empty file or update its timestamp         | path(s)                    | `touch notes.md`                             |
-| `reload`             | Reload the PowerShell profile                        | -                          | `reload`                                     |
-| `Get-Port`           | Show which process is using a local TCP port         | port number                | `Get-Port 3000`                              |
-| `Get-ProfileHelp` / `myhelp` | List all custom profile commands & examples  | filter (optional)          | `myhelp`, `myhelp hash`                      |
+Type `My-<Tab>` to discover all custom commands, or run `myhelp` (`My-Help`).
+
+| Command          | Alias(es)                        | Description                                                  | Example                              |
+| ---------------- | -------------------------------- | ------------------------------------------------------------ | ------------------------------------ |
+| `My-CopyFile`    | `cf`                             | Copy file(s)/folder(s) to clipboard (`Set-Clipboard -Path`)  | `cf report.pdf`, `ls *.png \| cf`    |
+| `My-CopyPath`    | `cpwd`                           | Copy resolved path (or current dir) as text                  | `cpwd`, `cpwd .\src`                 |
+| `My-Hash`        | `Compute-Hash`, `md5`, `sha1`, `sha256` | Hash file or string (`<Tab>` completes algorithm)     | `My-Hash file.zip SHA256`            |
+| `My-Sudo`        | `sudo` (fallback)                | Run as admin (uses built-in `sudo` on Win 11 24H2+)          | `sudo notepad example.txt`           |
+| `My-ElevatedPS`  | `Start-ElevatedPS`               | Run PowerShell script block as admin                         | `My-ElevatedPS { rm file.pdf }`      |
+| `My-CdFzf`       | `cdf`                            | Fuzzy-find a directory with `fd`/`fzf` and `cd` into it      | `cdf`                                |
+| `My-OpenFile`    | `Open-File`                      | Fuzzy-find a file with `fd`/`fzf` and open it                | `My-OpenFile`                        |
+| `My-Walk`        | `lk`                             | Navigate directories with `walk`                             | `lk`                                 |
+| `My-FindFile`    | `find-file`                      | Find files/folders recursively                               | `find-file config`                   |
+| `My-Unzip`       | `unzip`                          | Extract a zip archive                                        | `unzip file.zip .\out`               |
+| `My-Which`       | `which`                          | Show command/executable source (`<Tab>` completes commands)  | `which sudo`                         |
+| `My-Mkcd`        | `mkcd`                           | Create a directory and `cd` into it                          | `mkcd .\new-project`                 |
+| `My-Touch`       | `touch`                          | Create an empty file or update its timestamp                 | `touch notes.md`                     |
+| `My-Port`        | `Get-Port`                       | Show process using a TCP port (`<Tab>` completes open ports) | `My-Port 3000`                       |
+| `My-PublicIP`    | `Get-PubIP`                      | Get your public IP address                                   | `My-PublicIP`                        |
+| `My-Hotkeys`     | `Get-Hotkeys`                    | List PSReadLine keybindings                                  | `My-Hotkeys`                         |
+| `My-ToBios`      | `ToTheBios`                      | Reboot directly into UEFI/BIOS firmware settings             | `My-ToBios`                          |
+| `My-Reload`      | `reload`                         | Reload the PowerShell profile                                | `reload`                             |
+| `My-Help`        | `myhelp`                         | List custom commands (`<Tab>` completes command names)       | `myhelp`, `myhelp My-Hash`           |
 
 > [!NOTE]
 > **Windows 11 24H2+** includes native `sudo` (`Settings > System > For developers > Enable sudo`). When a native `sudo.exe` is available in `PATH`, the profile leaves it untouched; on older Windows versions it provides the `sudo` function fallback.

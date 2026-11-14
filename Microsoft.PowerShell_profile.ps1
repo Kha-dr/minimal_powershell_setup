@@ -1,3 +1,5 @@
+#Requires -Version 7.0
+
 # Interactive console setup (skip for non-interactive hosts / redirected output)
 if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) {
     Set-PSReadLineOption -PredictionSource History -PredictionViewStyle ListView -HistorySearchCursorMovesToEnd -BellStyle None
@@ -28,13 +30,13 @@ if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) {
         }
     }
 
-    # Cache starship init script to avoid spawning starship.exe on every shell startup
-    if ($starshipCmd = Get-Command starship -ErrorAction SilentlyContinue) {
-        $starshipCache = Join-Path $env:TEMP 'starship-init.ps1'
-        if (-not (Test-Path -LiteralPath $starshipCache) -or
-            (Get-Item -LiteralPath $starshipCmd.Source).LastWriteTime -gt (Get-Item -LiteralPath $starshipCache).LastWriteTime) {
-            & $starshipCmd.Source init powershell --print-full-init | Set-Content -LiteralPath $starshipCache -Encoding UTF8
-        }
+    # Cache starship init script to avoid PATH lookup and spawning starship.exe on startup
+    $starshipCache = Join-Path -Path $env:TEMP -ChildPath 'starship-init.ps1'
+    if (Test-Path -LiteralPath $starshipCache -PathType Leaf) {
+        . $starshipCache
+    }
+    elseif ($starshipCmd = Get-Command starship -ErrorAction SilentlyContinue) {
+        & $starshipCmd.Source init powershell --print-full-init | Set-Content -LiteralPath $starshipCache -Encoding UTF8
         . $starshipCache
     }
 
@@ -44,12 +46,18 @@ if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) {
     }
 }
 
-# Compute file or string hashes - useful for checking successful downloads
-function Compute-Hash {
+# Starship transient prompt hook (name required by Starship)
+function Invoke-Starship-TransientFunction {
+    & starship module shell
+}
+
+# Compute file or string hashes
+function My-Hash {
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipeline)]
         [string]$Value,
         [Parameter(Mandatory, Position = 1)]
+        [ValidateSet('SHA256', 'SHA1', 'MD5', 'SHA384', 'SHA512')]
         [string]$Algorithm
     )
 
@@ -68,12 +76,13 @@ function Compute-Hash {
         }
     }
 }
-function md5 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { Compute-Hash $Value MD5 } }
-function sha1 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { Compute-Hash $Value SHA1 } }
-function sha256 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { Compute-Hash $Value SHA256 } }
+Set-Alias -Name Compute-Hash -Value My-Hash
+function md5 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { My-Hash $Value MD5 } }
+function sha1 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { My-Hash $Value SHA1 } }
+function sha256 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { My-Hash $Value SHA256 } }
 
 # Copy file(s)/folder(s) to the clipboard (pasteable in File Explorer / apps)
-function Copy-File {
+function My-CopyFile {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
@@ -92,24 +101,27 @@ function Copy-File {
         }
     }
     end {
-        if ($resolved.Count -gt 0) {
-            Set-Clipboard -Path $resolved
-        }
+        if ($resolved.Count -eq 0) { return }
+
+        Add-Type -AssemblyName System.Windows.Forms
+        $fileList = [System.Collections.Specialized.StringCollection]::new()
+        $fileList.AddRange($resolved.ToArray())
+        [System.Windows.Forms.Clipboard]::SetFileDropList($fileList)
     }
 }
-Set-Alias -Name cf -Value Copy-File
+Set-Alias -Name cf -Value My-CopyFile
 
 # Copy resolved path (or current directory) as text to the clipboard
-function Copy-Path {
+function My-CopyPath {
     param([string]$Path = $PWD.ProviderPath)
 
     $resolved = (Resolve-Path -Path $Path -ErrorAction Stop).ProviderPath
     Set-Clipboard -Value $resolved
 }
-Set-Alias -Name cpwd -Value Copy-Path
+Set-Alias -Name cpwd -Value My-CopyPath
 
 if (-not (Get-Command sudo -CommandType Application -ErrorAction SilentlyContinue)) {
-    function sudo {
+    function My-Sudo {
         param(
             [Parameter(Mandatory, Position = 0)][string]$Command,
             [Parameter(ValueFromRemainingArguments)][string[]]$Arguments
@@ -119,9 +131,10 @@ if (-not (Get-Command sudo -CommandType Application -ErrorAction SilentlyContinu
         if ($Arguments) { $startArgs.ArgumentList = $Arguments }
         Start-Process @startArgs
     }
+    Set-Alias -Name sudo -Value My-Sudo
 }
 
-function cdf {
+function My-CdFzf {
     $selected = if (Get-Command fd -ErrorAction SilentlyContinue) {
         fd --type d | Invoke-Fzf
     }
@@ -130,8 +143,9 @@ function cdf {
     }
     if ($selected) { Set-Location -LiteralPath $selected }
 }
+Set-Alias -Name cdf -Value My-CdFzf
 
-function Open-File {
+function My-OpenFile {
     $selected = if (Get-Command fd -ErrorAction SilentlyContinue) {
         fd --type f | Invoke-Fzf
     }
@@ -140,30 +154,35 @@ function Open-File {
     }
     if ($selected) { Invoke-Item -LiteralPath $selected }
 }
+Set-Alias -Name Open-File -Value My-OpenFile
 
-function Get-Hotkeys {
+function My-Hotkeys {
     Get-PSReadLineKeyHandler | Format-Table -AutoSize -Property Key, Function, Description
 }
+Set-Alias -Name Get-Hotkeys -Value My-Hotkeys
 
-function Get-PubIP {
+function My-PublicIP {
     (Invoke-RestMethod -Uri 'https://ifconfig.me/ip').Trim()
 }
+Set-Alias -Name Get-PubIP -Value My-PublicIP
 
-function Start-ElevatedPS {
+function My-ElevatedPS {
     param([Parameter(Mandatory)][ScriptBlock]$Code)
 
     $exe = (Get-Process -Id $PID).Path
     Start-Process -FilePath $exe -Verb RunAs -ArgumentList '-NoExit', '-Command', $Code.ToString()
 }
+Set-Alias -Name Start-ElevatedPS -Value My-ElevatedPS
 
-function find-file {
+function My-FindFile {
     param([Parameter(Mandatory)][string]$Name)
 
     Get-ChildItem -Recurse -Filter "*$Name*" -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty FullName
 }
+Set-Alias -Name find-file -Value My-FindFile
 
-function unzip {
+function My-Unzip {
     param(
         [Parameter(Mandatory)][string]$File,
         [string]$Destination = $PWD.ProviderPath
@@ -173,34 +192,35 @@ function unzip {
     Write-Host "Extracting '$resolved' to '$Destination'"
     Expand-Archive -LiteralPath $resolved -DestinationPath $Destination
 }
+Set-Alias -Name unzip -Value My-Unzip
 
 # Reboot straight into UEFI/BIOS firmware settings
-function ToTheBios {
+function My-ToBios {
     shutdown /r /fw /f /t 0
 }
+Set-Alias -Name ToTheBios -Value My-ToBios
 
-function Invoke-Starship-TransientFunction {
-    & starship module shell
-}
-
-function lk {
+function My-Walk {
     $target = walk @args
     if ($target) { Set-Location -LiteralPath $target }
 }
+Set-Alias -Name lk -Value My-Walk
 
-function which {
+function My-Which {
     param([Parameter(Mandatory)][string]$Name)
 
     Get-Command -Name $Name -ErrorAction Stop | Select-Object -ExpandProperty Source
 }
+Set-Alias -Name which -Value My-Which
 
-function mkcd {
+function My-Mkcd {
     param([Parameter(Mandatory)][string]$Path)
 
     New-Item -ItemType Directory -Path $Path -Force | Set-Location
 }
+Set-Alias -Name mkcd -Value My-Mkcd
 
-function touch {
+function My-Touch {
     param([Parameter(Mandatory)][string[]]$Path)
 
     foreach ($p in $Path) {
@@ -212,12 +232,14 @@ function touch {
         }
     }
 }
+Set-Alias -Name touch -Value My-Touch
 
-function reload {
+function My-Reload {
     . $PROFILE
 }
+Set-Alias -Name reload -Value My-Reload
 
-function Get-Port {
+function My-Port {
     param([Parameter(Mandatory)][int]$Port)
 
     Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue |
@@ -226,42 +248,67 @@ function Get-Port {
             Expression = { (Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue).ProcessName }
         }
 }
+Set-Alias -Name Get-Port -Value My-Port
 
-function Get-ProfileHelp {
+$script:MyProfileCommands = @(
+    [pscustomobject]@{ Command = 'My-CopyFile';   Alias = 'cf';               Description = 'Copy file(s)/folder(s) to clipboard'; Example = 'cf report.pdf | ls *.png | cf' }
+    [pscustomobject]@{ Command = 'My-CopyPath';   Alias = 'cpwd';             Description = 'Copy resolved path (or cwd) as text'; Example = 'cpwd .\src' }
+    [pscustomobject]@{ Command = 'My-Hash';       Alias = 'Compute-Hash, md5, sha1, sha256'; Description = 'Hash file or string'; Example = 'My-Hash file.zip SHA256' }
+    [pscustomobject]@{ Command = 'My-Sudo';       Alias = 'sudo (fallback)';  Description = 'Run command as admin';                Example = 'sudo notepad hosts' }
+    [pscustomobject]@{ Command = 'My-ElevatedPS'; Alias = 'Start-ElevatedPS'; Description = 'Run script block in elevated shell';  Example = 'My-ElevatedPS { rm file.pdf }' }
+    [pscustomobject]@{ Command = 'My-CdFzf';      Alias = 'cdf';              Description = 'Fuzzy-find directory and cd into it'; Example = 'cdf' }
+    [pscustomobject]@{ Command = 'My-OpenFile';   Alias = 'Open-File';        Description = 'Fuzzy-find file and open it';         Example = 'My-OpenFile' }
+    [pscustomobject]@{ Command = 'My-Walk';       Alias = 'lk';               Description = 'Navigate directories with walk';      Example = 'lk' }
+    [pscustomobject]@{ Command = 'My-FindFile';   Alias = 'find-file';        Description = 'Recursively find files/folders';      Example = 'find-file config' }
+    [pscustomobject]@{ Command = 'My-Unzip';      Alias = 'unzip';            Description = 'Extract zip archive';                 Example = 'unzip file.zip .\out' }
+    [pscustomobject]@{ Command = 'My-Which';      Alias = 'which';            Description = 'Show command/executable source path'; Example = 'which sudo' }
+    [pscustomobject]@{ Command = 'My-Mkcd';       Alias = 'mkcd';             Description = 'Create directory and cd into it';     Example = 'mkcd .\new-project' }
+    [pscustomobject]@{ Command = 'My-Touch';      Alias = 'touch';            Description = 'Create file or update timestamp';     Example = 'touch notes.md' }
+    [pscustomobject]@{ Command = 'My-Port';       Alias = 'Get-Port';         Description = 'Show process using a local TCP port'; Example = 'My-Port 3000' }
+    [pscustomobject]@{ Command = 'My-PublicIP';   Alias = 'Get-PubIP';        Description = 'Get public IP address';               Example = 'My-PublicIP' }
+    [pscustomobject]@{ Command = 'My-Hotkeys';    Alias = 'Get-Hotkeys';      Description = 'List PSReadLine keybindings';         Example = 'My-Hotkeys' }
+    [pscustomobject]@{ Command = 'My-ToBios';     Alias = 'ToTheBios';        Description = 'Reboot into UEFI/BIOS settings';      Example = 'My-ToBios' }
+    [pscustomobject]@{ Command = 'My-Reload';     Alias = 'reload';           Description = 'Reload PowerShell profile';           Example = 'reload' }
+    [pscustomobject]@{ Command = 'My-Help';       Alias = 'myhelp';           Description = 'Show this custom command help';       Example = 'myhelp My-Hash' }
+)
+
+function My-Help {
     param([string]$Filter)
 
-    $commands = @(
-        [pscustomobject]@{ Command = 'Copy-File (cf)';      Description = 'Copy file(s)/folder(s) to clipboard'; Example = 'cf report.pdf | ls *.png | cf' }
-        [pscustomobject]@{ Command = 'Copy-Path (cpwd)';    Description = 'Copy resolved path (or cwd) as text'; Example = 'cpwd .\src' }
-        [pscustomobject]@{ Command = 'Compute-Hash';        Description = 'Hash file or string (pipeline ok)';   Example = 'Compute-Hash file.zip MD5' }
-        [pscustomobject]@{ Command = 'md5 / sha1 / sha256'; Description = 'Quick file or string hash';           Example = '"hello" | sha256' }
-        [pscustomobject]@{ Command = 'sudo';                Description = 'Run command as admin (fallback)';     Example = 'sudo notepad hosts' }
-        [pscustomobject]@{ Command = 'Start-ElevatedPS';    Description = 'Run script block in elevated shell';  Example = 'Start-ElevatedPS { rm file.pdf }' }
-        [pscustomobject]@{ Command = 'cdf';                 Description = 'Fuzzy-find directory and cd into it'; Example = 'cdf' }
-        [pscustomobject]@{ Command = 'Open-File';           Description = 'Fuzzy-find file and open it';         Example = 'Open-File' }
-        [pscustomobject]@{ Command = 'lk';                  Description = 'Navigate directories with walk';      Example = 'lk' }
-        [pscustomobject]@{ Command = 'find-file';           Description = 'Recursively find files/folders';      Example = 'find-file config' }
-        [pscustomobject]@{ Command = 'unzip';               Description = 'Extract zip archive';                 Example = 'unzip file.zip .\out' }
-        [pscustomobject]@{ Command = 'which';               Description = 'Show command/executable source path'; Example = 'which sudo' }
-        [pscustomobject]@{ Command = 'mkcd';                Description = 'Create directory and cd into it';     Example = 'mkcd .\new-project' }
-        [pscustomobject]@{ Command = 'touch';               Description = 'Create file or update timestamp';     Example = 'touch notes.md' }
-        [pscustomobject]@{ Command = 'Get-Port';            Description = 'Show process using a local TCP port'; Example = 'Get-Port 3000' }
-        [pscustomobject]@{ Command = 'Get-PubIP';           Description = 'Get public IP address';               Example = 'Get-PubIP' }
-        [pscustomobject]@{ Command = 'Get-Hotkeys';         Description = 'List PSReadLine keybindings';         Example = 'Get-Hotkeys' }
-        [pscustomobject]@{ Command = 'ToTheBios';           Description = 'Reboot into UEFI/BIOS settings';      Example = 'ToTheBios' }
-        [pscustomobject]@{ Command = 'reload';              Description = 'Reload PowerShell profile';           Example = 'reload' }
-        [pscustomobject]@{ Command = 'Get-ProfileHelp (myhelp)'; Description = 'Show this custom command help';  Example = 'myhelp hash' }
-    )
-
+    $list = $script:MyProfileCommands
     if ($Filter) {
-        $commands = $commands | Where-Object {
-            $_.Command -like "*$Filter*" -or $_.Description -like "*$Filter*"
+        $list = $list | Where-Object {
+            $_.Command -like "*$Filter*" -or $_.Alias -like "*$Filter*" -or $_.Description -like "*$Filter*"
         }
     }
 
-    $commands | Format-Table -AutoSize
+    $list | Format-Table -AutoSize
 }
-Set-Alias -Name myhelp -Value Get-ProfileHelp
+Set-Alias -Name myhelp -Value My-Help
+
+# Tab completion for custom commands
+Register-ArgumentCompleter -CommandName @('My-Help', 'myhelp') -ParameterName Filter -ScriptBlock {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+    $script:MyProfileCommands.Command |
+        Where-Object { $_ -like "$wordToComplete*" } |
+        ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
+}
+
+Register-ArgumentCompleter -CommandName @('My-Which', 'which') -ParameterName Name -ScriptBlock {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+    Get-Command -Name "$wordToComplete*" -ErrorAction SilentlyContinue |
+        Select-Object -First 30 -ExpandProperty Name |
+        ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
+}
+
+Register-ArgumentCompleter -CommandName @('My-Port', 'Get-Port') -ParameterName Port -ScriptBlock {
+    param($commandName, $parameterName, $wordToComplete, $commandAst, $fakeBoundParameters)
+    Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty LocalPort -Unique |
+        Sort-Object |
+        Where-Object { "$_".StartsWith($wordToComplete) } |
+        ForEach-Object { [System.Management.Automation.CompletionResult]::new("$_", "$_", 'ParameterValue', "Listening port $_") }
+}
 
 # Optional machine-specific overrides (kept separate from the repo-managed profile)
 $localProfile = Join-Path -Path (Split-Path -Path $PROFILE -Parent) -ChildPath 'profile.local.ps1'
