@@ -1,125 +1,124 @@
+param(
+    [switch]$ProfileOnly
+)
+
 # Check if the script is running as administrator
-$currentUser = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+$currentUser = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 $isAdmin = $currentUser.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if (-not $isAdmin) {
-    Write-Host "Script is not running as administrator. Relaunching with elevated privileges..."
-    
-    # Relaunch the script with elevated privileges
     $scriptPath = $MyInvocation.MyCommand.Definition
-    $argumentList = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
-    
-    Start-Process "powershell" -ArgumentList $argumentList -Verb RunAs
-    Exit
-}
-
-$profileFolderPath = Split-Path $PROFILE
-
-#If the file does not exist, create it.
-if (!(Test-Path -Path $PROFILE -PathType Leaf)) {
-    try {
-        # Detect Version of Powershell & Create Profile directories if they do not exist.
-        if ($PSVersionTable.PSEdition -eq "Core" ) { 
-            if (!(Test-Path -Path ($env:userprofile + "\Documents\Powershell"))) {
-                New-Item -Path ($env:userprofile + "\Documents\Powershell") -ItemType "directory"
-            }
-        }
-        elseif ($PSVersionTable.PSEdition -eq "Desktop") {
-            if (!(Test-Path -Path ($env:userprofile + "\Documents\WindowsPowerShell"))) {
-                New-Item -Path ($env:userprofile + "\Documents\WindowsPowerShell") -ItemType "directory"
-            }
-        }
-
-        Invoke-RestMethod https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/Microsoft.PowerShell_profile.ps1 -o $PROFILE
-        Write-Host "The profile @ [$PROFILE] has been created."
+    if (-not $scriptPath) {
+        Write-Error 'Please run this setup command from an elevated (Administrator) PowerShell.'
+        exit 1
     }
-    catch {
-        throw $_.Exception.Message
+
+    Write-Host 'Script is not running as administrator. Relaunching with elevated privileges...'
+    $exe = (Get-Process -Id $PID).Path
+    $profileFlag = if ($ProfileOnly) { ' -ProfileOnly' } else { '' }
+    $argumentList = "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"$profileFlag"
+    Start-Process -FilePath $exe -ArgumentList $argumentList -Verb RunAs
+    exit
+}
+
+# Ensure profile directory exists (works for both PowerShell 5.1, 7+, and OneDrive Documents)
+$profileFolderPath = Split-Path -Path $PROFILE -Parent
+if (-not (Test-Path -LiteralPath $profileFolderPath)) {
+    $null = New-Item -Path $profileFolderPath -ItemType Directory -Force
+}
+
+$profileUrl = 'https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/Microsoft.PowerShell_profile.ps1'
+if (Test-Path -LiteralPath $PROFILE -PathType Leaf) {
+    $backupPath = Join-Path -Path $profileFolderPath -ChildPath 'oldprofile.ps1'
+    Move-Item -LiteralPath $PROFILE -Destination $backupPath -Force
+    Write-Host "Backed up existing profile to [$backupPath]."
+}
+
+Invoke-RestMethod -Uri $profileUrl -OutFile $PROFILE
+Write-Host "Profile installed at [$PROFILE]."
+
+if (-not $ProfileOnly) {
+    # Install Scoop if missing
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        Invoke-Expression "& {$(Invoke-RestMethod -Uri 'https://get.scoop.sh')} -RunAsAdmin"
+        Write-Host 'Scoop has been installed successfully!'
+    }
+    else {
+        Write-Host 'Scoop is already installed.'
+    }
+
+    # Install CLI tools via winget (non-interactive)
+    $wingetPackages = @(
+        'junegunn.fzf'
+        'sharkdp.fd'
+        'Starship.Starship'
+        'Flow-Launcher.Flow-Launcher'
+        'Neovim.Neovim'
+        'chrisant996.Clink'
+        'antonmedv.walk'
+    )
+
+    foreach ($pkg in $wingetPackages) {
+        winget install --id $pkg --exact --accept-package-agreements --accept-source-agreements
     }
 }
-# If the file already exists, move to oldProfile.ps1.
-else {
-    Get-Item -Path $PROFILE | Move-Item -Destination $profileFolderPath/oldprofile.ps1
-    Invoke-RestMethod https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/Microsoft.PowerShell_profile.ps1 -o $PROFILE
-    Write-Host "The profile @ [$PROFILE] has been created and old profile has been moved @ [$profileFolderPath/oldprofile.ps1]."
-}
-# Instaling The Oh-My-Posh
-# winget install JanDeDobbeleer.OhMyPosh -s winget
 
-#Install Scooop & Fzf
-# iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
-# Check if Scoop is installed
-if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
-    # Install Scoop
-    Invoke-Expression "& {$(Invoke-RestMethod get.scoop.sh)} -RunAsAdmin"
-    Write-Host "Scoop has been installed successfully!"
+# Configure Starship for Clink (ensure directory exists)
+$clinkDir = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'clink'
+if (-not (Test-Path -LiteralPath $clinkDir)) {
+    $null = New-Item -Path $clinkDir -ItemType Directory -Force
 }
-else {
-    Write-Host "Scoop is already installed."
-}
+"load(io.popen('starship init cmd'):read('*a'))()" | Set-Content -Path (Join-Path -Path $clinkDir -ChildPath 'starship.lua') -Encoding UTF8
 
-Write-Host ""
-winget install fzf
-winget install starship
-winget install "Flow Launcher"
-winget install neovim.neovim
-winget install clink
-winget install antonmedv.walk
-
-"load(io.popen('starship init cmd'):read('*a'))()" | Set-Content -Path "$env:LocalAppData\clink\starship.lua"
+# Install PowerShell modules
 Install-Module -Name PSFzf -Scope CurrentUser -Force
-Install-Module posh-git -Scope CurrentUser
-# Install-Module -Name PSReadLine -Scope CurrentUser -RequiredVersion 2.2.6 -force
-Install-Module -Name PSReadLine -Scope CurrentUser -force
-Install-Module -Name Terminal-Icons -Scope CurrentUser -Repository PSGallery
+Install-Module -Name PSReadLine -Scope CurrentUser -Force
+Install-Module -Name Terminal-Icons -Scope CurrentUser -Repository PSGallery -Force
 
-# Reloading Path Environment Variable
-$Env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
+# Reload PATH environment variable
+$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
 
-# Get The Oh-My-Posh theme
-$themePath = "$HOME/.config/starship.toml"
-Invoke-WebRequest -O $themePath https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/starship.toml
+# Download Starship config (ensure ~/.config exists)
+$configDir = Join-Path -Path $HOME -ChildPath '.config'
+if (-not (Test-Path -LiteralPath $configDir)) {
+    $null = New-Item -Path $configDir -ItemType Directory -Force
+}
+$themePath = Join-Path -Path $configDir -ChildPath 'starship.toml'
+Invoke-RestMethod -Uri 'https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/starship.toml' -OutFile $themePath
 
-Write-Host "Installing Nerd Font......"
-# Font Install
-# Get all installed font families
-[void] [System.Reflection.Assembly]::LoadWithPartialName("System.Drawing")
-$fontFamilies = (New-Object System.Drawing.Text.InstalledFontCollection).Families
+# Install CaskaydiaCove Nerd Font if missing (use $env:TEMP instead of working directory)
+if (-not $ProfileOnly) {
+    Write-Host 'Checking Nerd Font...'
+    Add-Type -AssemblyName System.Drawing
+    $fontFamilies = ([System.Drawing.Text.InstalledFontCollection]::new()).Families.Name
 
-# Check if CaskaydiaCove NF is installed
-if ($fontFamilies -notcontains "CaskaydiaCove NF") {
-    
-    # Download and install CaskaydiaCove NF
-    $webClient = New-Object System.Net.WebClient
-    $webClient.DownloadFile("https://github.com/ryanoasis/nerd-fonts/releases/download/v3.0.2/CascadiaCode.zip", ".\CascadiaCode.zip")
+    if ($fontFamilies -notcontains 'CaskaydiaCove NF') {
+        $zipPath = Join-Path -Path $env:TEMP -ChildPath 'CascadiaCode.zip'
+        $extractPath = Join-Path -Path $env:TEMP -ChildPath 'CascadiaCode'
 
-    Expand-Archive -Path ".\CascadiaCode.zip" -DestinationPath ".\CascadiaCode" -Force
-    $destination = (New-Object -ComObject Shell.Application).Namespace(0x14)
-    Get-ChildItem -Path ".\CascadiaCode" -Recurse -Filter "*.ttf" | ForEach-Object {
-        Write-Host "        Installing Font $($_.Name)......"
-        If (-not(Test-Path "C:\Windows\Fonts\$($_.Name)")) {        
-            # Install font
-            $destination.CopyHere($_.FullName, 0x10)
+        Invoke-WebRequest -Uri 'https://github.com/ryanoasis/nerd-fonts/releases/latest/download/CascadiaCode.zip' -OutFile $zipPath
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
+
+        $fontsShellFolder = (New-Object -ComObject Shell.Application).Namespace(0x14)
+        Get-ChildItem -Path $extractPath -Recurse -Filter '*.ttf' | ForEach-Object {
+            if (-not (Test-Path -LiteralPath (Join-Path -Path 'C:\Windows\Fonts' -ChildPath $_.Name))) {
+                Write-Host "Installing Font $($_.Name)..."
+                $fontsShellFolder.CopyHere($_.FullName, 0x10)
+            }
         }
+
+        Remove-Item -Path $extractPath, $zipPath -Recurse -Force -ErrorAction SilentlyContinue
     }
-
-    # Clean up
-    Remove-Item -Path ".\CascadiaCode" -Recurse -Force
-    Remove-Item -Path ".\CascadiaCode.zip" -Force
 }
-Write-Host "Set The Execution Policy......"
 
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned CurrentUser -force
+Write-Host 'Setting execution policy...'
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
 
-# Set-ExecutionPolicy -ExecutionPolicy RemoteSigned LocalMachine -force
-
-
-if (test-path $scriptPath) { Remove-Item $scriptPath }
-
-if (Get-Command wt) { 
+if (Get-Command wt -ErrorAction SilentlyContinue) {
     Start-Process wt
-    Exit
+    exit
 }
-Write-Host "Windows Terminal Is Not Installed !!!!, Start Powershell"
-Start-Process powershell
-Exit
+
+Write-Host 'Windows Terminal is not installed. Starting PowerShell...'
+Start-Process (Get-Process -Id $PID).Path
+exit
