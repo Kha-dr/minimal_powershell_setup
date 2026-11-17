@@ -44,6 +44,7 @@ Type `My-<Tab>` to discover all custom commands, or run `myhelp` (`My-Help`).
 | `My-ElevatedPS`  | `Start-ElevatedPS`               | Run PowerShell script block as admin                         | `My-ElevatedPS { rm file.pdf }`      |
 | `My-CdFzf`       | `cdf`                            | Fuzzy-find a directory with `fd`/`fzf` and `cd` into it      | `cdf`                                |
 | `My-OpenFile`    | `Open-File`                      | Fuzzy-find a file with `fd`/`fzf` and open it                | `My-OpenFile`                        |
+| `My-Code`        | `codef`                          | Fuzzy-find file/folder with `fd`/`fzf` and open in VS Code   | `codef`, `codef profile`             |
 | `My-Walk`        | `lk`                             | Navigate directories with `walk`                             | `lk`                                 |
 | `My-FindFile`    | `find-file`                      | Find files/folders recursively                               | `find-file config`                   |
 | `My-Tree`        | `Get-Tree`                       | Display directory tree (`-Depth`, `-Exclude`, `-All`, long-path safe) | `My-Tree -Depth 2`          |

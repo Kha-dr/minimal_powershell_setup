@@ -17,6 +17,8 @@ if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) {
         . $starshipCache
     }
 
+    Write-Host 'myhelp • My-<Tab> • Shift+Del: remove history • F2: toggle view' -ForegroundColor DarkGray
+
     # Lazy-load Terminal-Icons, Shift+Delete handler, and argument completers on idle so the prompt appears immediately
     $null = Register-EngineEvent -SourceIdentifier PowerShell.OnIdle -MaxTriggerCount 1 -Action {
         Import-Module -Name Terminal-Icons -Global -ErrorAction SilentlyContinue
@@ -42,6 +44,7 @@ if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) {
                 $updated = $history -replace "(?m)^$toRemove\r?\n?", ''
                 Set-Content -LiteralPath $historyPath -Value $updated -NoNewline
             }
+            [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
         }
 
         Register-ArgumentCompleter -CommandName @('My-Help', 'myhelp') -ParameterName Filter -ScriptBlock {
@@ -104,6 +107,32 @@ function md5 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) pr
 function sha1 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { My-Hash $Value SHA1 } }
 function sha256 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value) process { My-Hash $Value SHA256 } }
 
+# Shared fd/Get-ChildItem + fzf picker (includes hidden dotfiles, excludes .git internals)
+function Invoke-MyFzf {
+    param(
+        [ValidateSet('All', 'File', 'Directory')][string]$Type = 'All',
+        [switch]$Multi,
+        [string]$Query
+    )
+
+    $fzfArgs = @()
+    if ($Multi) { $fzfArgs += '-m' }
+    if ($Query) { $fzfArgs += @('--query', $Query) }
+
+    if (Get-Command fd -ErrorAction SilentlyContinue) {
+        $fdArgs = @('--hidden', '--exclude', '.git')
+        if ($Type -eq 'File') { $fdArgs += @('--type', 'f') }
+        elseif ($Type -eq 'Directory') { $fdArgs += @('--type', 'd') }
+        fd @fdArgs | fzf @fzfArgs
+    }
+    else {
+        $gciArgs = @{ Path = '.'; Recurse = $true; Force = $true; ErrorAction = 'SilentlyContinue' }
+        if ($Type -eq 'File') { $gciArgs.File = $true }
+        elseif ($Type -eq 'Directory') { $gciArgs.Directory = $true }
+        (Get-ChildItem @gciArgs).FullName | fzf @fzfArgs
+    }
+}
+
 # Copy file(s)/folder(s) to the clipboard (pasteable in File Explorer / apps); run with no args to pick via fzf
 function My-CopyFile {
     [CmdletBinding()]
@@ -128,13 +157,7 @@ function My-CopyFile {
     }
     end {
         if (-not $hasInput) {
-            $selected = if (Get-Command fd -ErrorAction SilentlyContinue) {
-                fd | fzf -m
-            }
-            else {
-                (Get-ChildItem -Path . -Recurse -ErrorAction SilentlyContinue).FullName | fzf -m
-            }
-            foreach ($s in $selected) {
+            foreach ($s in (Invoke-MyFzf -Multi)) {
                 foreach ($item in (Resolve-Path -LiteralPath $s -ErrorAction SilentlyContinue)) {
                     $resolved.Add($item.ProviderPath)
                 }
@@ -175,26 +198,24 @@ if (-not (Test-Path -LiteralPath "$env:SystemRoot\System32\sudo.exe" -PathType L
 }
 
 function My-CdFzf {
-    $selected = if (Get-Command fd -ErrorAction SilentlyContinue) {
-        fd --type d | fzf
-    }
-    else {
-        (Get-ChildItem -Path . -Recurse -Directory -ErrorAction SilentlyContinue).FullName | fzf
-    }
+    $selected = Invoke-MyFzf -Type Directory
     if ($selected) { Set-Location -LiteralPath $selected }
 }
 Set-Alias -Name cdf -Value My-CdFzf
 
 function My-OpenFile {
-    $selected = if (Get-Command fd -ErrorAction SilentlyContinue) {
-        fd --type f | fzf
-    }
-    else {
-        (Get-ChildItem -Path . -Recurse -File -ErrorAction SilentlyContinue).FullName | fzf
-    }
+    $selected = Invoke-MyFzf -Type File
     if ($selected) { Invoke-Item -LiteralPath $selected }
 }
 Set-Alias -Name Open-File -Value My-OpenFile
+
+function My-Code {
+    param([string]$Query)
+
+    $selected = Invoke-MyFzf -Multi -Query $Query
+    if ($selected) { code @selected }
+}
+Set-Alias -Name codef -Value My-Code
 
 function My-Hotkeys {
     Get-PSReadLineKeyHandler | Format-Table -AutoSize -Property Key, Function, Description
@@ -359,6 +380,7 @@ $global:MyProfileCommands = @(
     [pscustomobject]@{ Command = 'My-ElevatedPS'; Alias = 'Start-ElevatedPS'; Description = 'Run script block in elevated shell';  Example = 'My-ElevatedPS { rm file.pdf }' }
     [pscustomobject]@{ Command = 'My-CdFzf';      Alias = 'cdf';              Description = 'Fuzzy-find directory and cd into it'; Example = 'cdf' }
     [pscustomobject]@{ Command = 'My-OpenFile';   Alias = 'Open-File';        Description = 'Fuzzy-find file and open it';         Example = 'My-OpenFile' }
+    [pscustomobject]@{ Command = 'My-Code';       Alias = 'codef';            Description = 'Fuzzy-find file/folder and open in VS Code'; Example = 'codef | codef profile' }
     [pscustomobject]@{ Command = 'My-Walk';       Alias = 'lk';               Description = 'Navigate directories with walk';      Example = 'lk' }
     [pscustomobject]@{ Command = 'My-FindFile';   Alias = 'find-file';        Description = 'Recursively find files/folders';      Example = 'find-file config' }
     [pscustomobject]@{ Command = 'My-Tree';       Alias = 'Get-Tree';         Description = 'Display directory tree (long-path safe)'; Example = 'My-Tree -Depth 2' }
