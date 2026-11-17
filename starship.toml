@@ -13,6 +13,8 @@ $time\
 \n$character"""
 continuation_prompt = '▶▶ '
 add_newline = true
+command_timeout = 2000
+scan_timeout = 150
 
 [line_break]
 disabled = true

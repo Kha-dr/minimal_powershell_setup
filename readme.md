@@ -37,7 +37,7 @@ Type `My-<Tab>` to discover all custom commands, or run `myhelp` (`My-Help`).
 
 | Command          | Alias(es)                        | Description                                                  | Example                              |
 | ---------------- | -------------------------------- | ------------------------------------------------------------ | ------------------------------------ |
-| `My-CopyFile`    | `cf`                             | Copy file(s)/folder(s) to clipboard (`Set-Clipboard -Path`)  | `cf report.pdf`, `ls *.png \| cf`    |
+| `My-CopyFile`    | `cf`                             | Copy file(s)/folder(s) to clipboard (`fzf -m` if no args)    | `cf`, `cf report.pdf`, `ls *.png \| cf` |
 | `My-CopyPath`    | `cpwd`                           | Copy resolved path (or current dir) as text                  | `cpwd`, `cpwd .\src`                 |
 | `My-Hash`        | `Compute-Hash`, `md5`, `sha1`, `sha256` | Hash file or string (`<Tab>` completes algorithm)     | `My-Hash file.zip SHA256`            |
 | `My-Sudo`        | `sudo` (fallback)                | Run as admin (uses built-in `sudo` on Win 11 24H2+)          | `sudo notepad example.txt`           |
@@ -46,6 +46,7 @@ Type `My-<Tab>` to discover all custom commands, or run `myhelp` (`My-Help`).
 | `My-OpenFile`    | `Open-File`                      | Fuzzy-find a file with `fd`/`fzf` and open it                | `My-OpenFile`                        |
 | `My-Walk`        | `lk`                             | Navigate directories with `walk`                             | `lk`                                 |
 | `My-FindFile`    | `find-file`                      | Find files/folders recursively                               | `find-file config`                   |
+| `My-Tree`        | `Get-Tree`                       | Display directory tree (`-Depth`, `-Exclude`, `-All`, long-path safe) | `My-Tree -Depth 2`          |
 | `My-Unzip`       | `unzip`                          | Extract a zip archive                                        | `unzip file.zip .\out`               |
 | `My-Which`       | `which`                          | Show command/executable source (`<Tab>` completes commands)  | `which sudo`                         |
 | `My-Mkcd`        | `mkcd`                           | Create a directory and `cd` into it                          | `mkcd .\new-project`                 |
