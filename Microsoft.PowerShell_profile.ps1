@@ -121,10 +121,19 @@ function Invoke-MyFzf {
     if ($Query) { $fzfArgs += @('--query', $Query) }
 
     if (Get-Command fd -ErrorAction SilentlyContinue) {
-        $fdArgs = @('--hidden', '--exclude', '.git')
-        if ($Type -eq 'File') { $fdArgs += @('--type', 'f') }
-        elseif ($Type -eq 'Directory') { $fdArgs += @('--type', 'd') }
-        fd @fdArgs | fzf @fzfArgs
+        $fdCmd = 'fd --hidden --exclude .git'
+        if ($Type -eq 'File') { $fdCmd += ' --type f' }
+        elseif ($Type -eq 'Directory') { $fdCmd += ' --type d' }
+
+        # Let fzf spawn fd directly so selecting early never triggers PowerShell's "pipe is being closed" error
+        $prevFzfCmd = $env:FZF_DEFAULT_COMMAND
+        try {
+            $env:FZF_DEFAULT_COMMAND = $fdCmd
+            fzf @fzfArgs
+        }
+        finally {
+            $env:FZF_DEFAULT_COMMAND = $prevFzfCmd
+        }
     }
     else {
         $gciArgs = @{ Path = '.'; Recurse = $true; Force = $true; ErrorAction = 'SilentlyContinue' }
@@ -306,7 +315,15 @@ function My-Touch {
 Set-Alias -Name touch -Value My-Touch
 
 function My-Reload {
+    if (-not $PROFILE -or -not (Test-Path -LiteralPath $PROFILE)) { return }
+
+    # Dot-source inside a function creates local definitions; promote custom functions & aliases to global scope
     . $PROFILE
+    Get-ChildItem Function:\My-*, Function:\Invoke-MyFzf, Function:\md5, Function:\sha1, Function:\sha256, Function:\Invoke-Starship-TransientFunction -ErrorAction SilentlyContinue |
+        ForEach-Object { Set-Item -Path "Function:\global:$($_.Name)" -Value $_.ScriptBlock }
+    Get-Alias -Scope Local |
+        Where-Object { $_.Definition -like 'My-*' } |
+        ForEach-Object { Set-Alias -Name $_.Name -Value $_.Definition -Scope Global -Force }
 }
 Set-Alias -Name reload -Value My-Reload
 
