@@ -2,6 +2,7 @@
 
 # Interactive console setup (skip for non-interactive hosts / redirected output)
 if ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     Set-PSReadLineOption -PredictionSource History -PredictionViewStyle ListView -HistorySearchCursorMovesToEnd -BellStyle None
     Set-PSReadLineKeyHandler -Key Tab -Function MenuComplete
     Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
@@ -212,8 +213,8 @@ Set-Alias -Name Open-File -Value My-OpenFile
 function My-Code {
     param([string]$Query)
 
-    $selected = Invoke-MyFzf -Multi -Query $Query
-    if ($selected) { code @selected }
+    $selected = @(Invoke-MyFzf -Multi -Query $Query)
+    if ($selected.Count -gt 0) { code @selected }
 }
 Set-Alias -Name codef -Value My-Code
 
