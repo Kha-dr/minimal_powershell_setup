@@ -80,10 +80,23 @@ if (-not (Test-Path -LiteralPath $clinkDir)) {
 }
 "load(io.popen('starship init cmd'):read('*a'))()" | Set-Content -Path (Join-Path -Path $clinkDir -ChildPath 'starship.lua') -Encoding UTF8
 
-# Install PowerShell modules
-Install-Module -Name PSFzf -Scope CurrentUser -Force
-Install-Module -Name PSReadLine -Scope CurrentUser -Force
-Install-Module -Name Terminal-Icons -Scope CurrentUser -Repository PSGallery -Force
+# Install PowerShell modules safely (handles NuGet provider, untrusted PSGallery, and inbox PSReadLine)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+if (-not (Get-PackageProvider -Name NuGet -ListAvailable -ErrorAction SilentlyContinue)) {
+    $null = Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Scope CurrentUser -Force
+}
+if ((Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue).InstallationPolicy -ne 'Trusted') {
+    Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+}
+
+foreach ($mod in @('PSReadLine', 'Terminal-Icons', 'PSFzf')) {
+    if (Get-InstalledModule -Name $mod -ErrorAction SilentlyContinue) {
+        Update-Module -Name $mod -Force -ErrorAction Continue
+    }
+    else {
+        Install-Module -Name $mod -Scope CurrentUser -Repository PSGallery -AllowClobber -SkipPublisherCheck -Force
+    }
+}
 
 # Reload PATH environment variable
 $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path', 'User')
