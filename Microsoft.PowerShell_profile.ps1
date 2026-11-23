@@ -111,35 +111,52 @@ function sha256 { param([Parameter(Mandatory, ValueFromPipeline)][string]$Value)
 # Shared fd/Get-ChildItem + fzf picker (includes hidden dotfiles, excludes .git internals)
 function Invoke-MyFzf {
     param(
+        [string]$Path = '.',
         [ValidateSet('All', 'File', 'Directory')][string]$Type = 'All',
         [switch]$Multi,
         [string]$Query
     )
 
+    $searchRoot = (Resolve-Path -LiteralPath $Path -ErrorAction Stop).ProviderPath
     $fzfArgs = @()
     if ($Multi) { $fzfArgs += '-m' }
     if ($Query) { $fzfArgs += @('--query', $Query) }
 
-    if (Get-Command fd -ErrorAction SilentlyContinue) {
-        $fdCmd = 'fd --hidden --exclude .git'
-        if ($Type -eq 'File') { $fdCmd += ' --type f' }
-        elseif ($Type -eq 'Directory') { $fdCmd += ' --type d' }
+    $picked = @()
+    Push-Location -LiteralPath $searchRoot
+    try {
+        if (Get-Command fd -ErrorAction SilentlyContinue) {
+            $fdCmd = 'fd --hidden --exclude .git'
+            if ($Type -eq 'File') { $fdCmd += ' --type f' }
+            elseif ($Type -eq 'Directory') { $fdCmd += ' --type d' }
 
-        # Let fzf spawn fd directly so selecting early never triggers PowerShell's "pipe is being closed" error
-        $prevFzfCmd = $env:FZF_DEFAULT_COMMAND
-        try {
-            $env:FZF_DEFAULT_COMMAND = $fdCmd
-            fzf @fzfArgs
+            # Let fzf spawn fd directly so selecting early never triggers PowerShell's "pipe is being closed" error
+            $prevFzfCmd = $env:FZF_DEFAULT_COMMAND
+            try {
+                $env:FZF_DEFAULT_COMMAND = $fdCmd
+                $picked = @(fzf @fzfArgs)
+            }
+            finally {
+                $env:FZF_DEFAULT_COMMAND = $prevFzfCmd
+            }
         }
-        finally {
-            $env:FZF_DEFAULT_COMMAND = $prevFzfCmd
+        else {
+            $gciArgs = @{ Path = '.'; Recurse = $true; Force = $true; ErrorAction = 'SilentlyContinue' }
+            if ($Type -eq 'File') { $gciArgs.File = $true }
+            elseif ($Type -eq 'Directory') { $gciArgs.Directory = $true }
+            $picked = @(
+                (Get-ChildItem @gciArgs) |
+                    ForEach-Object { [IO.Path]::GetRelativePath($searchRoot, $_.FullName) } |
+                    fzf @fzfArgs
+            )
         }
     }
-    else {
-        $gciArgs = @{ Path = '.'; Recurse = $true; Force = $true; ErrorAction = 'SilentlyContinue' }
-        if ($Type -eq 'File') { $gciArgs.File = $true }
-        elseif ($Type -eq 'Directory') { $gciArgs.Directory = $true }
-        (Get-ChildItem @gciArgs).FullName | fzf @fzfArgs
+    finally {
+        Pop-Location
+    }
+
+    foreach ($item in $picked) {
+        if ($item) { Join-Path -Path $searchRoot -ChildPath $item }
     }
 }
 
@@ -208,22 +225,47 @@ if (-not (Test-Path -LiteralPath "$env:SystemRoot\System32\sudo.exe" -PathType L
 }
 
 function My-CdFzf {
-    $selected = Invoke-MyFzf -Type Directory
+    param([string]$Path = '.')
+
+    $selected = Invoke-MyFzf -Path $Path -Type Directory
     if ($selected) { Set-Location -LiteralPath $selected }
 }
 Set-Alias -Name cdf -Value My-CdFzf
 
 function My-OpenFile {
-    $selected = Invoke-MyFzf -Type File
+    param([string]$Path = '.')
+
+    $selected = Invoke-MyFzf -Path $Path -Type File
     if ($selected) { Invoke-Item -LiteralPath $selected }
 }
 Set-Alias -Name Open-File -Value My-OpenFile
 
 function My-Code {
-    param([string]$Query)
+    param(
+        [Parameter(Position = 0)][string]$Target,
+        [Parameter(Position = 1)][string]$Query,
+        [Alias('w')][switch]$Wait,
+        [Alias('n')][switch]$NewWindow,
+        [Alias('r')][switch]$ReuseWindow
+    )
 
-    $selected = @(Invoke-MyFzf -Multi -Query $Query)
-    if ($selected.Count -gt 0) { code @selected }
+    $searchPath = '.'
+    if ($Target) {
+        if (Test-Path -LiteralPath $Target -PathType Container) {
+            $searchPath = $Target
+        }
+        elseif (-not $Query) {
+            $Query = $Target
+        }
+    }
+
+    $codeArgs = @()
+    if ($Wait) { $codeArgs += '--wait' }
+    if ($NewWindow) { $codeArgs += '--new-window' }
+    if ($ReuseWindow) { $codeArgs += '--reuse-window' }
+
+    $selected = @(Invoke-MyFzf -Path $searchPath -Multi -Query $Query)
+    if ($selected.Count -gt 0) { code @codeArgs @selected }
 }
 Set-Alias -Name codef -Value My-Code
 
@@ -396,9 +438,9 @@ $global:MyProfileCommands = @(
     [pscustomobject]@{ Command = 'My-Hash';       Alias = 'Compute-Hash, md5, sha1, sha256'; Description = 'Hash file or string'; Example = 'My-Hash file.zip SHA256' }
     [pscustomobject]@{ Command = 'My-Sudo';       Alias = 'sudo (fallback)';  Description = 'Run command as admin';                Example = 'sudo notepad hosts' }
     [pscustomobject]@{ Command = 'My-ElevatedPS'; Alias = 'Start-ElevatedPS'; Description = 'Run script block in elevated shell';  Example = 'My-ElevatedPS { rm file.pdf }' }
-    [pscustomobject]@{ Command = 'My-CdFzf';      Alias = 'cdf';              Description = 'Fuzzy-find directory and cd into it'; Example = 'cdf' }
-    [pscustomobject]@{ Command = 'My-OpenFile';   Alias = 'Open-File';        Description = 'Fuzzy-find file and open it';         Example = 'My-OpenFile' }
-    [pscustomobject]@{ Command = 'My-Code';       Alias = 'codef';            Description = 'Fuzzy-find file/folder and open in VS Code'; Example = 'codef | codef profile' }
+    [pscustomobject]@{ Command = 'My-CdFzf';      Alias = 'cdf';              Description = 'Fuzzy-find directory and cd into it'; Example = 'cdf | cdf .\src' }
+    [pscustomobject]@{ Command = 'My-OpenFile';   Alias = 'Open-File';        Description = 'Fuzzy-find file and open it';         Example = 'Open-File | Open-File .\docs' }
+    [pscustomobject]@{ Command = 'My-Code';       Alias = 'codef';            Description = 'Fuzzy-find and open in VS Code (-w, -n, -r)'; Example = 'codef | codef .\src | codef -w' }
     [pscustomobject]@{ Command = 'My-Walk';       Alias = 'lk';               Description = 'Navigate directories with walk';      Example = 'lk' }
     [pscustomobject]@{ Command = 'My-FindFile';   Alias = 'find-file';        Description = 'Recursively find files/folders';      Example = 'find-file config' }
     [pscustomobject]@{ Command = 'My-Tree';       Alias = 'Get-Tree';         Description = 'Display directory tree (long-path safe)'; Example = 'My-Tree -Depth 2' }

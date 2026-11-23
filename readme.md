@@ -17,7 +17,7 @@ Advantages:
 - Command IntelliSense menu completion (`Tab` / `Ctrl + Space`)
 - Terminal icons when listing files (`ls`, `ls | fw`, `ls | fl`)
 - Delete a command from history with `Shift + Delete`
-- Fast startup via cached `starship` init and idle-loaded `Terminal-Icons` (with `fd` support in `cdf` / `Open-File`)
+- Fast startup via cached `starship` init and idle-loaded `Terminal-Icons` (with `fd` + hidden-file support in `cf`, `cdf`, `Open-File`, and `codef`)
 
 ## Install (PowerShell 7+ Run As Administrator)
 
@@ -31,6 +31,8 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
 irm "https://raw.githubusercontent.com/khad1r/minimal_powershell_setup/main/setup.ps1" | iex
 ```
 
+*(Already have your apps installed via `devenv-backup`? Run `.\setup.ps1 -ProfileOnly` from the repo.)*
+
 ## Custom Commands
 
 Type `My-<Tab>` to discover all custom commands, or run `myhelp` (`My-Help`).
@@ -42,9 +44,9 @@ Type `My-<Tab>` to discover all custom commands, or run `myhelp` (`My-Help`).
 | `My-Hash`        | `Compute-Hash`, `md5`, `sha1`, `sha256` | Hash file or string (`<Tab>` completes algorithm)     | `My-Hash file.zip SHA256`            |
 | `My-Sudo`        | `sudo` (fallback)                | Run as admin (uses built-in `sudo` on Win 11 24H2+)          | `sudo notepad example.txt`           |
 | `My-ElevatedPS`  | `Start-ElevatedPS`               | Run PowerShell script block as admin                         | `My-ElevatedPS { rm file.pdf }`      |
-| `My-CdFzf`       | `cdf`                            | Fuzzy-find a directory with `fd`/`fzf` and `cd` into it      | `cdf`                                |
-| `My-OpenFile`    | `Open-File`                      | Fuzzy-find a file with `fd`/`fzf` and open it                | `My-OpenFile`                        |
-| `My-Code`        | `codef`                          | Fuzzy-find file/folder with `fd`/`fzf` and open in VS Code   | `codef`, `codef profile`             |
+| `My-CdFzf`       | `cdf`                            | Fuzzy-find a directory with `fd`/`fzf` and `cd` into it      | `cdf`, `cdf .\src`                   |
+| `My-OpenFile`    | `Open-File`                      | Fuzzy-find a file with `fd`/`fzf` and open it                | `Open-File`, `Open-File .\docs`      |
+| `My-Code`        | `codef`                          | Fuzzy-find file/folder with `fd`/`fzf` and open in VS Code (`-w`, `-n`, `-r`) | `codef`, `codef .\src`, `codef -w` |
 | `My-Walk`        | `lk`                             | Navigate directories with `walk`                             | `lk`                                 |
 | `My-FindFile`    | `find-file`                      | Find files/folders recursively                               | `find-file config`                   |
 | `My-Tree`        | `Get-Tree`                       | Display directory tree (`-Depth`, `-Exclude`, `-All`, long-path safe) | `My-Tree -Depth 2`          |
